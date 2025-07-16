@@ -1,8 +1,11 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import nbinom, gamma, beta
+import argparse
+import yaml
+import argparse
 
-def generate_zero_inflated_data_enhanced(n_samples=7500000, seed=43):
+def generate_zero_inflated_data_enhanced(n_samples=7500000, seed=43, noise_level=0.1, zero_inflation_factor=0.5):
     """
     Generate enhanced zero-inflated count dataset with more complex patterns.
     
@@ -16,35 +19,27 @@ def generate_zero_inflated_data_enhanced(n_samples=7500000, seed=43):
     np.random.seed(seed)
     
     # 1. Generate more diverse covariates
-    X1 = np.random.normal(0, 1.5, n_samples)  # Higher variance
-    X2 = beta.rvs(2, 5, size=n_samples) * 2 - 1  # Beta distribution for skewness
-    X3 = np.random.binomial(1, 0.4, n_samples)  # Higher probability
+    X1 = np.random.normal(0, 1.5, n_samples)
+    X2 = beta.rvs(2, 5, size=n_samples) * 2 - 1
+    X3 = np.random.binomial(1, 0.4, n_samples)
     
-    # Add more complex feature interactions
-    X1_squared = X1 ** 2
-    X1_X2_interaction = X1 * X2
-    X2_log = np.log(np.abs(X2) + 0.1)  # Log transformation
-    
+    # Add noise
+    X1 += np.random.normal(0, noise_level, n_samples)
+    X2 += np.random.normal(0, noise_level, n_samples)
+
     # 2. Enhanced zero-inflation with stronger signals and interactions
     logit_p = (-1.2 + 
-               2.5 * X1 +                    # Stronger linear effect
-               -1.8 * X2 +                   # Stronger negative effect
-               1.2 * X3 +                    # Stronger binary effect
-               0.8 * X1_squared +            # Quadratic effect
-               -0.6 * X1_X2_interaction +    # Interaction effect
-               0.4 * X2_log)                 # Log transformation effect
+               2.5 * X1 +
+               -1.8 * X2 +
+               1.2 * X3)
     
-    # Apply sigmoid with temperature scaling for better separation
-    pi = 1 / (1 + np.exp(-logit_p * 1.5))
-    
+    pi = 1 / (1 + np.exp(-logit_p * (1 / zero_inflation_factor)))
+
     # 3. Enhanced count process with complex patterns
     log_mu = (0.8 + 
-              1.4 * X1 +                    # Stronger effect
-              0.9 * X2 +                    # Stronger effect
-              -0.7 * X3 +                   # Stronger negative effect
-              0.5 * X1_squared +            # Quadratic relationship
-              0.3 * X1_X2_interaction +     # Interaction
-              -0.2 * X2_log)                # Log effect
+              1.4 * X1 +
+              0.9 * X2 +
+              -0.7 * X3)
     
     mu = np.exp(log_mu)
     
@@ -67,10 +62,10 @@ def generate_zero_inflated_data_enhanced(n_samples=7500000, seed=43):
     y = counts.copy()
     y[is_struct_zero] = 0
     
-    # 7. Add some extreme values (fat tail)
-    extreme_mask = np.random.rand(n_samples) < 0.01  # 1% extreme values
-    extreme_counts = gamma.rvs(a=2, scale=10, size=np.sum(extreme_mask))
-    y[extreme_mask] = extreme_counts.astype(int)
+    # Remove extreme values for classification task
+    # extreme_mask = np.random.rand(n_samples) < 0.01
+    # extreme_counts = gamma.rvs(a=2, scale=10, size=np.sum(extreme_mask))
+    # y[extreme_mask] = extreme_counts.astype(int)
     
     # 8. Assemble enhanced DataFrame
     df = pd.DataFrame({
@@ -80,11 +75,10 @@ def generate_zero_inflated_data_enhanced(n_samples=7500000, seed=43):
         'y': y
     })
     df['zero'] = (df['y'] == 0).astype(int)
-    df['data_source'] = 'enhanced'
     
     return df
 
-def generate_zero_inflated_data(n_samples=20000000, seed=42):
+def generate_zero_inflated_data(n_samples=20000000, seed=42, noise_level=0.1, zero_inflation_factor=0.5):
     """
     Generate a purely enhanced zero-inflated count dataset.
     
@@ -98,44 +92,50 @@ def generate_zero_inflated_data(n_samples=20000000, seed=42):
     print(f"Generating {n_samples:,} samples using enhanced patterns...")
     
     # Generate the dataset
-    df_enhanced = generate_zero_inflated_data_enhanced(n_samples, seed + 1)
+    df_enhanced = generate_zero_inflated_data_enhanced(n_samples, seed + 1, noise_level, zero_inflation_factor)
     
     # Shuffle the dataset
     print("\nShuffling dataset...")
     df_shuffled = df_enhanced.sample(frac=1, random_state=seed).reset_index(drop=True)
     
-    # Remove data_source column for consistency
-    df_final = df_shuffled.drop('data_source', axis=1)
-    
     # Print statistics
     print(f"\nDataset Statistics:")
-    print(f"- Total samples: {len(df_final):,}")
-    print(f"- Zero proportion: {df_final['zero'].mean():.3f}")
-    print(f"- Mean count (non-zero): {df_final[df_final['y'] > 0]['y'].mean():.2f}")
-    print(f"- Max count: {df_final['y'].max()}")
-    print(f"- 99th percentile: {df_final['y'].quantile(0.99):.1f}")
+    print(f"- Total samples: {len(df_shuffled):,}")
+    print(f"- Zero proportion: {df_shuffled['zero'].mean():.3f}")
+    print(f"- Mean count (non-zero): {df_shuffled[df_shuffled['y'] > 0]['y'].mean():.2f}")
+    print(f"- Max count: {df_shuffled['y'].max()}")
+    print(f"- 99th percentile: {df_shuffled['y'].quantile(0.99):.1f}")
     
     # Feature correlations with zero indicator
     for col in ['X1', 'X2', 'X3']:
-        corr = df_final[col].corr(df_final['zero'])
+        corr = df_shuffled[col].corr(df_shuffled['zero'])
         print(f"- {col} correlation with zero: {corr:.3f}")
     
-    return df_final
+    return df_shuffled
 
-if __name__ == "__main__":
-    # Generate combined dataset with both basic and enhanced patterns
+def main():
+    """Main function to generate data based on a config file."""
+    parser = argparse.ArgumentParser(description="Generate zero-inflated count data.")
+    parser.add_argument('--config', type=str, default='config.yaml', help='Path to the configuration file.')
+    args = parser.parse_args()
+
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    data_config = config.get('data', {})
+    
     print("="*60)
     print("ENHANCED ZERO-INFLATED COUNT DATA GENERATION")
     print("="*60)
     
-    # Generate 20M samples with only enhanced patterns
     df = generate_zero_inflated_data(
-        n_samples=20000000, 
-        seed=42
+        n_samples=data_config.get('n_samples', 20000000), 
+        seed=config.get('training', {}).get('random_state', 42),
+        noise_level=data_config.get('noise_level', 0.1),
+        zero_inflation_factor=data_config.get('zero_inflation_factor', 0.5)
     )
     
-    # Save dataset
-    output_filename = "zero_inflated_data.csv"
+    output_filename = data_config.get('path', 'zero_inflated_data.csv')
     print(f"\nSaving dataset to {output_filename}...")
     df.to_csv(output_filename, index=False)
     print(f"✅ Successfully generated and saved {len(df):,} samples!")
@@ -143,3 +143,6 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("GENERATION COMPLETE - Ready for training!")
     print("="*60)
+
+if __name__ == "__main__":
+    main()

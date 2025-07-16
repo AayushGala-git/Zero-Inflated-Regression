@@ -31,10 +31,14 @@ __pycache__/
 # MacOS
 .DS_Store
 
-# Logs
+# Log files
 *.log
 execution.log
 pipeline.log
+
+# Datasets
+zero_inflated_data.csv
+classification_data.csv
 
 # Large data files
 *.csv

@@ -16,24 +16,37 @@ After extensive experimentation, including advanced feature engineering and rigo
 
 The benchmark model is not only more accurate but also simpler, faster to train, and easier to maintain. The two-stage approach, while theoretically sound for zero-inflated data, failed to generalize effectively on this specific dataset, leading to poor overall performance.
 
+## Classification Performance Test
+
+To specifically evaluate the model's ability to distinguish between zero and non-zero outcomes, a separate classification test was conducted on a newly generated dataset (`classification_data.csv`).
+
+**The model achieved an accuracy of 73.80% on this task.**
+
+| Metric | Precision | Recall | F1-Score |
+| :--- | :--- | :--- | :--- |
+| **Zero** | 0.96 | 0.72 | 0.82 |
+| **Non-Zero**| 0.35 | 0.83 | 0.49 |
+
+This shows that while the model is effective at identifying the majority of non-zero cases (high recall), it does so at the cost of making many false positive predictions (low precision).
+
 ## Final Project Structure
 
 The repository is organized into a modular and scalable pipeline:
 
 ```text
 .
-├── config.yaml                        # Central configuration for the pipeline
+├── config.yaml                        # Central configuration for the main pipeline
+├── config_classification.yaml         # Configuration for the classification test
 ├── data_generation.py                 # Script to create synthetic data
-├── train.py                           # Main script to run the full training and evaluation pipeline
-├── tune_models.py                     # Script for hyperparameter tuning (for both models)
+├── train.py                           # Main script for the regression task
+├── test_classification.py             # Script to run the classification test
+├── tune_models.py                     # Script for hyperparameter tuning
 ├── evaluate.py                        # Contains all evaluation and visualization logic
 ├── data.py                            # Data loading utilities
 ├── advanced_feature_engineering.py    # Advanced feature creation logic
 ├── requirements.txt                   # Project dependencies
 ├── outputs/                           # Directory for all generated reports, plots, and model files
 │   ├── evaluation_report.txt          # Detailed performance metrics
-│   ├── best_hyperparameters.json      # Tuned parameters for the benchmark model
-│   ├── benchmark_feature_importance.png # Feature importance plot
 │   └── ... (other plots)
 └── tests/                             # Unit tests for key components
 ```
@@ -90,6 +103,13 @@ The repository is organized into a modular and scalable pipeline:
     python train.py --config config.yaml
     ```
     The script will use the hyperparameters defined in `config.yaml`. For best results, update the config with the parameters found during the tuning step.
+
+4.  **Run the Classification Test:**
+    To evaluate the model's ability to classify zero vs. non-zero outcomes on a separate dataset, run:
+    ```bash
+    python test_classification.py --config config_classification.yaml
+    ```
+    This script uses its own configuration and dataset to provide an independent accuracy score.
 
 ## What We Improved
 

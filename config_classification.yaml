@@ -1,0 +1,45 @@
+# Configuration for Classification Task Evaluation
+# ==========================================
+# This configuration is designed to generate a new dataset specifically
+# for testing the classification performance (zero vs. non-zero).
+
+general:
+  log_level: "INFO"
+  output_dir: "outputs/"
+
+data:
+  path: "classification_data.csv" # New dataset file
+  features: ["X1", "X2", "X3"]
+  target: "y"
+  n_samples: 500000 # A different size for the new dataset
+  n_features: 3
+  noise_level: 0.2
+  zero_inflation_factor: 0.6 # Slightly different inflation factor
+
+feature_engineering:
+  create_polynomial_features: true
+  polynomial_degree: 2
+  create_interaction_features: true
+  create_log_features: false
+  create_binned_features: false
+  create_statistical_features: false
+  random_state: 123 # Use a different random state for variety
+
+training:
+  model_type: "lightgbm"
+  hyperparameters_path: "outputs/best_hyperparameters.json"
+  test_size: 0.25 # Using a 75/25 split for this test
+  random_state: 123
+
+evaluation:
+  calibration_n_bins: 10
+
+tuning:
+  enabled: false # Not needed for this test run
+  n_trials: 20
+  early_stopping_rounds: 25
+  zero_hyperparameter_path: 'outputs/best_hyperparameters.json'
+  count_hyperparameter_path: 'outputs/best_count_hyperparameters.json'
+
+model:
+  type: 'lightgbm'
