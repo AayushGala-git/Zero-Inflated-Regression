@@ -1,0 +1,45 @@
+__MACOSX/
+*.DS_Store
+catboost_info/tmp/
+results*.txt
+*.png
+
+# Virtual Environment
+venv/
+env/
+.venv/
+.env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MacOS
+.DS_Store
+
+# Logs
+*.log
+execution.log
+pipeline.log
+
+# Large data files
+*.csv
+*.pdf
+*.pptx
+
+# Output directory
+/outputs/

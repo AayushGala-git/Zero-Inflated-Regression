@@ -1,0 +1,42 @@
+# Simplified Pipeline Configuration
+# ==========================================
+# This configuration is for the refactored LightGBM-based pipeline.
+
+general:
+  log_level: "INFO"
+  output_dir: "outputs/"
+
+data:
+  path: "zero_inflated_data.csv"
+  features: ["X1", "X2", "X3"] # Base features used by the feature engineer
+  target: "y"
+
+feature_engineering:
+  # These settings match the best model found in `basics/lgbm_advanced.py`
+  create_polynomial_features: true
+  polynomial_degree: 2
+  create_interaction_features: true
+  # Disable other feature types that did not improve performance
+  create_log_features: false
+  create_binned_features: false
+  create_statistical_features: false
+  random_state: 42
+
+training:
+  model_type: "lightgbm"
+  hyperparameters_path: "outputs/best_hyperparameters.json"
+  test_size: 0.2
+  random_state: 42
+
+evaluation:
+  calibration_n_bins: 15
+
+tuning:
+  enabled: true
+  n_trials: 50
+  early_stopping_rounds: 50
+  zero_hyperparameter_path: 'outputs/best_hyperparameters.json'
+  count_hyperparameter_path: 'outputs/best_count_hyperparameters.json'
+
+model:
+  type: 'lightgbm' # or 'xgboost', 'linear', etc.
