@@ -24,7 +24,7 @@ feature_engineering:
 
 training:
   model_type: "lightgbm"
-  hyperparameters_path: "outputs/best_hyperparameters.json"
+  hyperparameters_path: "outputs/hyperparams/best_zero_hyperparameters.json"
   test_size: 0.2
   random_state: 42
 
@@ -35,8 +35,8 @@ tuning:
   enabled: true
   n_trials: 50
   early_stopping_rounds: 50
-  zero_hyperparameter_path: 'outputs/best_hyperparameters.json'
-  count_hyperparameter_path: 'outputs/best_count_hyperparameters.json'
+  zero_hyperparameter_path: 'outputs/hyperparams/best_zero_hyperparameters.json'
+  count_hyperparameter_path: 'outputs/hyperparams/best_count_hyperparameters.json'
 
 model:
   type: 'lightgbm' # or 'xgboost', 'linear', etc.

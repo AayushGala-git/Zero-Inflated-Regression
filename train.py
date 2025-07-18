@@ -197,6 +197,12 @@ def train_two_stage_model(X_train, y_train, zero_stage_params: dict, count_stage
         logger.warning("No specific hyperparameters found for the count model. Using LightGBM defaults.")
         count_stage_params = {}
 
+    # Ensure the objective is set to quantile for robustness
+    if 'objective' not in count_stage_params or count_stage_params['objective'] != 'quantile':
+        logger.info("Setting count model objective to 'quantile' for robust regression.")
+        count_stage_params['objective'] = 'quantile'
+        count_stage_params['alpha'] = 0.5 # Target the median
+
     count_model = lgb.LGBMRegressor(**count_stage_params)
     count_model.fit(X_train_nonzero, y_train_nonzero)
     
@@ -254,6 +260,14 @@ def run_pipeline(config: Config):
             zero_stage_params=zero_stage_params,
             count_stage_params=count_stage_params
         )
+        
+        # Save the two-stage models
+        models_dir = os.path.join(config.general.output_dir, 'models')
+        os.makedirs(models_dir, exist_ok=True)
+        joblib.dump(zero_model, os.path.join(models_dir, 'two_stage_zero_model.pkl'))
+        joblib.dump(count_model, os.path.join(models_dir, 'two_stage_count_model.pkl'))
+        logger.info(f"Saved two-stage models to {models_dir}")
+
     else:
         raise NotImplementedError(f"Model type '{config.training.model_type}' not supported.")
 
@@ -282,7 +296,8 @@ def run_pipeline(config: Config):
 
 
     # --- 6. Reporting and Visualization ---
-    report_path = os.path.join(config.general.output_dir, 'evaluation_report.txt')
+    report_path = os.path.join(config.general.output_dir, 'reports', 'evaluation_report.txt')
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
     
     # Generate and save the full report for the two-stage model
     report = evaluate.generate_report(
@@ -307,15 +322,27 @@ def run_pipeline(config: Config):
         y_pred_count=y_pred_two_stage,
         y_true_binary=y_zero_test,
         y_prob_binary=y_prob_zero_stage,
-        output_dir=config.general.output_dir,
+        config=config,
+        model_name="Two-Stage Model",
         prefix="two_stage_"
     )
     
     # --- 7. Benchmark Model ---
     logger.info("Training and evaluating benchmark model (Single LGBMRegressor)...")
+    
+    # Ensure the benchmark also uses quantile regression for a fair comparison
+    if 'objective' not in count_stage_params or count_stage_params['objective'] != 'quantile':
+        logger.info("Setting benchmark model objective to 'quantile' for robust regression.")
+        count_stage_params['objective'] = 'quantile'
+        count_stage_params['alpha'] = 0.5 # Target the median
+
     benchmark_model = lgb.LGBMRegressor(**count_stage_params, random_state=config.training.random_state)
     benchmark_model.fit(X_train, y_train)
     
+    # Save the benchmark model
+    joblib.dump(benchmark_model, os.path.join(models_dir, 'benchmark_model.pkl'))
+    logger.info(f"Saved benchmark model to {models_dir}")
+
     # Evaluate the benchmark model
     benchmark_metrics = evaluate.evaluate_single_model(benchmark_model, X_test, y_test)
     logging.info(f"Benchmark Model Metrics: R2={benchmark_metrics['r2']:.4f}, RMSE={benchmark_metrics['rmse']:.4f}, MAE={benchmark_metrics['mae']:.4f}")
@@ -343,7 +370,8 @@ def run_pipeline(config: Config):
         y_pred_count=y_pred_benchmark,
         y_true_binary=y_zero_benchmark,
         y_prob_binary=y_prob_benchmark_dummy, # Using dummy probabilities
-        output_dir=config.general.output_dir,
+        config=config,
+        model_name="Benchmark Model",
         prefix="benchmark_"
     )
 
@@ -354,7 +382,7 @@ def run_pipeline(config: Config):
     })
     evaluate.plot_feature_importance(
         feature_importance_df,
-        os.path.join(config.general.output_dir, 'benchmark_feature_importance.png')
+        os.path.join(config.general.output_dir, 'plots', 'benchmark_feature_importance.png')
     )
 
     logging.info("Pipeline finished successfully.")

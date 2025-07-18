@@ -501,6 +501,35 @@ def plot_roc_curve(
     return fig
 
 
+def plot_pr_curve(
+    y_true: np.ndarray, 
+    y_prob: np.ndarray, 
+    output_path: Optional[str] = None
+) -> plt.Figure:
+    """
+    Plots the Precision-Recall curve.
+    """
+    from sklearn.metrics import precision_recall_curve, average_precision_score
+    precision, recall, _ = precision_recall_curve(y_true, y_prob)
+    avg_precision = average_precision_score(y_true, y_prob)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(recall, precision, color='blue', lw=2, label=f'PR curve (AP = {avg_precision:0.2f})')
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.set_title('Precision-Recall Curve')
+    ax.legend(loc="lower left")
+    ax.grid(True, alpha=0.3)
+
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        logger.info(f"Saved PR curve to {output_path}")
+        
+    return fig
+
+
 def generate_report(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -673,47 +702,130 @@ def plot_distribution_comparison(
 
 
 def plot_residuals(
-    residuals: np.ndarray, 
-    output_path: Optional[str] = None
-) -> plt.Figure:
+    residuals: pd.Series,
+    model_name: str,
+    config: Config,
+    sample_size: int = 50000
+) -> None:
     """
-    Plots the distribution of residuals.
+    Plot histogram of residuals.
+    
+    Parameters
+    ----------
+    residuals : pd.Series
+        Model residuals (y_true - y_pred)
+    model_name : str
+        Name of the model for title
+    config : Config
+        Configuration object
+    sample_size : int
+        Number of data points to sample for plotting to avoid performance issues
     """
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.histplot(residuals, kde=True, ax=ax)
-    ax.set_title('Distribution of Residuals')
-    ax.set_xlabel('Residual (True - Predicted)')
-    ax.set_ylabel('Frequency')
-    ax.grid(True, alpha=0.3)
+    # Ensure residuals is a numpy array and remove NaNs
+    if isinstance(residuals, pd.Series):
+        residuals = residuals.values
+    
+    residuals = residuals[~np.isnan(residuals)]
 
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        logger.info(f"Saved residuals plot to {output_path}")
+    if residuals.size == 0:
+        logger.warning(f"No valid residuals for {model_name} to plot.")
+        return
 
-    return fig
+    if residuals.size > sample_size:
+        plot_data = np.random.choice(residuals, sample_size, replace=False)
+    else:
+        plot_data = residuals
+
+    # Clip outliers for better visualization
+    lower_bound, upper_bound = np.percentile(plot_data, [1, 99])
+    plot_data_clipped = np.clip(plot_data, lower_bound, upper_bound)
+
+    plot_df = pd.DataFrame({'residuals': plot_data_clipped})
+
+    plt.figure(figsize=(10, 6))
+    ax = sns.histplot(data=plot_df, x='residuals', kde=True, bins=50)
+    plt.title(f'Residuals Distribution for {model_name}')
+    plt.xlabel('Residuals')
+    plt.ylabel('Frequency')
+    
+    # Save plot
+    plot_path = os.path.join(config.general.output_dir, 'plots', f'{model_name.lower().replace(" ", "_")}_residuals.png')
+    os.makedirs(os.path.dirname(plot_path), exist_ok=True)
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"Saved residuals plot to {plot_path}")
 
 
 def plot_residuals_vs_predicted(
-    y_pred: np.ndarray,
-    residuals: np.ndarray,
-    output_path: Optional[str] = None
-) -> plt.Figure:
+    residuals: pd.Series,
+    predictions: np.ndarray,
+    model_name: str,
+    config: Config,
+    sample_size: int = 50000
+) -> None:
     """
-    Plots residuals vs. predicted values.
+    Plot residuals vs. predicted values.
+    
+    Parameters
+    ----------
+    residuals : pd.Series
+        Model residuals
+    predictions : np.ndarray
+        Predicted values
+    model_name : str
+        Name of the model for title
+    config : Config
+        Configuration object
+    sample_size : int
+        Number of data points to sample for plotting
     """
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.scatter(y_pred, residuals, alpha=0.5, s=10)
-    ax.axhline(y=0, color='red', linestyle='--')
-    ax.set_title('Residuals vs. Predicted Values')
-    ax.set_xlabel('Predicted Values')
-    ax.set_ylabel('Residuals (True - Predicted)')
-    ax.grid(True, alpha=0.3)
+    # Ensure inputs are numpy arrays and remove NaNs
+    if isinstance(residuals, pd.Series):
+        residuals = residuals.values
+    if isinstance(predictions, pd.Series):
+        predictions = predictions.values
 
-    if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        logger.info(f"Saved residuals vs. predicted plot to {output_path}")
+    valid_mask = ~np.isnan(residuals) & ~np.isnan(predictions)
+    residuals = residuals[valid_mask]
+    predictions = predictions[valid_mask]
 
-    return fig
+    if residuals.size == 0:
+        logger.warning(f"No valid data for {model_name} to plot residuals vs predicted.")
+        return
+
+    if residuals.size > sample_size:
+        indices = np.random.choice(residuals.size, sample_size, replace=False)
+        plot_residuals = residuals[indices]
+        plot_predictions = predictions[indices]
+    else:
+        plot_residuals = residuals
+        plot_predictions = predictions
+
+    # Clip for visualization
+    lower_res, upper_res = np.percentile(plot_residuals, [1, 99])
+    lower_pred, upper_pred = np.percentile(plot_predictions, [1, 99])
+    
+    plot_residuals_clipped = np.clip(plot_residuals, lower_res, upper_res)
+    plot_predictions_clipped = np.clip(plot_predictions, lower_pred, upper_pred)
+
+    plot_df = pd.DataFrame({
+        'predictions': plot_predictions_clipped,
+        'residuals': plot_residuals_clipped
+    })
+
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(data=plot_df, x='predictions', y='residuals', alpha=0.5)
+    plt.axhline(0, color='red', linestyle='--')
+    plt.title(f'Residuals vs. Predicted for {model_name}')
+    plt.xlabel('Predicted Values')
+    plt.ylabel('Residuals')
+    
+    # Save plot
+    plot_path = os.path.join(config.general.output_dir, 'plots', f'{model_name.lower().replace(" ", "_")}_residuals_vs_predicted.png')
+    os.makedirs(os.path.dirname(plot_path), exist_ok=True)
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"Saved residuals vs. predicted plot to {plot_path}")
 
 
 def plot_feature_importance(
@@ -729,6 +841,7 @@ def plot_feature_importance(
     ax.set_xlabel('Importance')
     ax.set_title('Feature Importance')
     plt.tight_layout()
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     logger.info(f"Saved feature importance plot to {output_path}")
 
@@ -738,13 +851,16 @@ def generate_visualizations(
     y_pred_count: np.ndarray,
     y_true_binary: np.ndarray,
     y_prob_binary: np.ndarray,
-    output_dir: str,
+    config: Config,
+    model_name: str,
     prefix: str = ""
 ):
     """
     Generates and saves all standard visualizations.
     """
     logger.info(f"Generating all visualizations with prefix: '{prefix}'")
+    output_dir = os.path.join(config.general.output_dir, 'plots')
+    os.makedirs(output_dir, exist_ok=True)
 
     # ROC Curve for zero-stage
     plot_roc_curve(
@@ -753,7 +869,23 @@ def generate_visualizations(
         output_path=os.path.join(output_dir, f'{prefix}roc_curve.png')
     )
 
+    # PR Curve for zero-stage
+    plot_pr_curve(
+        y_true_binary,
+        y_prob_binary,
+        output_path=os.path.join(output_dir, f'{prefix}pr_curve.png')
+    )
+
+    # Calibration curve for zero-stage
+    plot_calibration(
+        y_true_binary,
+        y_prob_binary,
+        n_bins=config.evaluation.calibration_n_bins,
+        output_path=os.path.join(output_dir, f'{prefix}calibration.png')
+    )
+
     # Predicted vs Actual for count-stage
+    logger.info("Generating predicted vs actual plot")
     plot_pred_vs_actual(
         y_true_count, 
         y_pred_count, 
@@ -763,15 +895,17 @@ def generate_visualizations(
     # Residuals plot
     residuals = y_true_count - y_pred_count
     plot_residuals(
-        residuals, 
-        output_path=os.path.join(output_dir, f'{prefix}residuals.png')
+        residuals=pd.Series(residuals), 
+        model_name=model_name,
+        config=config
     )
 
     # Residuals vs. Predicted plot
     plot_residuals_vs_predicted(
-        y_pred_count,
-        residuals,
-        output_path=os.path.join(output_dir, f'{prefix}residuals_vs_predicted.png')
+        residuals=pd.Series(residuals),
+        predictions=y_pred_count,
+        model_name=model_name,
+        config=config
     )
     
     logger.info("All visualizations generated.")

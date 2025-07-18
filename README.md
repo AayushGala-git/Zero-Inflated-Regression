@@ -1,35 +1,44 @@
-# Zero-Inflated Model Analysis Pipeline
+# Project Title: Zero-Inflated Count Data Modeling
 
-This project implements a comprehensive pipeline to model zero-inflated count data. It systematically explores, evaluates, and compares a two-stage (Hurdle) model against a simpler, single-regressor benchmark. The final analysis concludes that the benchmark model is superior for this dataset.
+## Overview
 
-## Key Findings & Conclusion
+This project explores various modeling techniques for zero-inflated count data. The primary goal is to build a predictive model that can accurately handle a large number of zero values while also correctly predicting the magnitude of non-zero counts.
 
-After extensive experimentation, including advanced feature engineering and rigorous hyperparameter tuning, the key finding is:
+The core of the project involves comparing a two-stage (Hurdle) model against a single robust regression model (benchmark).
 
-**The single LightGBM Regressor (Benchmark Model) significantly outperforms the more complex Two-Stage Hurdle Model.**
+## Final Results & Conclusion
 
-| Metric | Benchmark Model (LGBM) | Two-Stage Model |
-| :--- | :--- | :--- |
-| **RMSE** | **3.23** | 11.98 |
-| **MAE** | **1.08** | 7.77 |
-| **R²** | **0.095** | -11.43 |
+After extensive experimentation, including feature engineering, hyperparameter tuning, and model architecture changes, we have arrived at a clear conclusion.
 
-The benchmark model is not only more accurate but also simpler, faster to train, and easier to maintain. The two-stage approach, while theoretically sound for zero-inflated data, failed to generalize effectively on this specific dataset, leading to poor overall performance.
+### Model Architectures Tested
 
-## Classification Performance Test
+1. **Two-Stage Hurdle Model:**
+    * **Stage 1 (Classification):** A `lightgbm.LGBMClassifier` predicts the probability of a transaction being non-zero (`P(y > 0)`).
+    * **Stage 2 (Regression):** A `lightgbm.LGBMRegressor` with a **quantile regression objective** predicts the count value for transactions identified as non-zero (`E[y | y > 0]`).
 
-To specifically evaluate the model's ability to distinguish between zero and non-zero outcomes, a separate classification test was conducted on a newly generated dataset (`classification_data.csv`).
+2. **Benchmark Model:**
+    * A single `lightgbm.LGBMRegressor`, also using a **quantile regression objective**, trained on the entire dataset.
 
-**The model achieved an accuracy of 73.80% on this task.**
+### Key Findings
 
-| Metric | Precision | Recall | F1-Score |
-| :--- | :--- | :--- | :--- |
-| **Zero** | 0.96 | 0.72 | 0.82 |
-| **Non-Zero**| 0.35 | 0.83 | 0.49 |
+| Metric                      | Two-Stage Hurdle Model | Benchmark (Single Regressor) |
+| --------------------------- | ---------------------- | ---------------------------- |
+| **Overall R-squared**       | -5.69                  | -0.002                       |
+| **Overall MAE**             | 5.73                   | **0.86**                     |
+| **Classifier AUC (Stage 1)**| 0.85                   | N/A                          |
+| **Regressor R² (Stage 2)**  | 0.27                   | N/A                          |
 
-This shows that while the model is effective at identifying the majority of non-zero cases (high recall), it does so at the cost of making many false positive predictions (low precision).
+1. **Quantile Regression Was Effective:** The decision to switch the regression component to use a quantile objective was successful. The regressor in the two-stage model achieved a respectable R-squared of **0.27** on the subset of data it was trained on.
 
-## Final Project Structure
+2. **Hurdle Model Fails Due to Error Propagation:** Despite the success of the regression stage, the overall two-stage model performed very poorly (Overall R² of -5.69). The failure lies in the classification stage. While it had high precision (0.93), its recall was only 0.68, meaning it incorrectly classified 32% of non-zero transactions as zero. These classification errors introduced massive prediction errors that the regression stage could not overcome.
+
+3. **Simpler is Better:** The benchmark model, a single robust regressor, proved to be the superior approach. Although its R-squared was near zero, its Mean Absolute Error (MAE) of **0.86** was nearly **7 times lower** than the hurdle model's MAE of 5.73. This indicates that its predictions are significantly more accurate and reliable in a real-world scenario.
+
+### Final Conclusion
+
+For this dataset, the complexity of a two-stage hurdle model is detrimental. A single, robust regression model (like LightGBM with a quantile or Tweedie objective) that can inherently handle zero values is the more effective and reliable strategy. The attempt to perfectly separate zeros from non-zeros creates more error than it solves.
+
+## Project Structure
 
 The repository is organized into a modular and scalable pipeline:
 
@@ -55,18 +64,20 @@ The repository is organized into a modular and scalable pipeline:
 
 ### Requirements
 
-- Python 3.8+
-- See `requirements.txt` for the full list of packages.
+* Python 3.8+
+* See `requirements.txt` for the full list of packages.
 
 ### Installation
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
+
     ```bash
     git clone <your-repo-url>
     cd <repository-name>
     ```
 
-2.  **Create a virtual environment and install dependencies:**
+2. **Create a virtual environment and install dependencies:**
+
     ```bash
     python -m venv venv
     source venv/bin/activate
@@ -75,40 +86,50 @@ The repository is organized into a modular and scalable pipeline:
 
 ### Running the Pipeline
 
-1.  **(Optional) Generate New Data:**
+1. **(Optional) Generate New Data:**
     If you need to generate a new synthetic dataset, run:
+
     ```bash
     python data_generation.py
     ```
+
     This will create `zero_inflated_data.csv` based on the parameters in `config.yaml`.
 
-2.  **(Optional) Tune Hyperparameters:**
+2. **(Optional) Tune Hyperparameters:**
     To find the optimal hyperparameters for either the benchmark or the two-stage model components, use the `tune_models.py` script.
 
-    *   **Tune the benchmark regressor:**
+    * **Tune the benchmark regressor:**
+
         ```bash
         python tune_models.py --model count
         ```
+
         This will find the best parameters for the single regressor and save them to `outputs/best_count_hyperparameters.json`.
 
-    *   **Tune the zero-stage classifier:**
+    * **Tune the zero-stage classifier:**
+
         ```bash
         python tune_models.py --model zero
         ```
+
         This saves results to `outputs/best_zero_hyperparameters.json`.
 
 3.  **Run the Main Training and Evaluation Pipeline:**
     This is the primary script that trains the models, evaluates them, and generates all the analysis plots and reports.
+
     ```bash
     python train.py --config config.yaml
     ```
+
     The script will use the hyperparameters defined in `config.yaml`. For best results, update the config with the parameters found during the tuning step.
 
 4.  **Run the Classification Test:**
     To evaluate the model's ability to classify zero vs. non-zero outcomes on a separate dataset, run:
+
     ```bash
     python test_classification.py --config config_classification.yaml
     ```
+
     This script uses its own configuration and dataset to provide an independent accuracy score.
 
 ## What We Improved

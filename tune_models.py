@@ -50,10 +50,11 @@ def objective_zero(trial, X_train, y_train, X_val, y_val, early_stopping_rounds)
     return auc
 
 def objective_count(trial, X_train, y_train, X_val, y_val, early_stopping_rounds):
-    """Optuna objective function for the count (regression) model."""
+    """Optuna objective function for the count (regression) model using Quantile Regression."""
     param = {
-        'objective': 'regression_l1',  # MAE for robustness
-        'metric': 'rmse',
+        'objective': 'quantile',  # Use Quantile Regression for robustness to outliers
+        'alpha': 0.5,             # Target the median (50th percentile)
+        'metric': 'quantile',     # Optimize for the quantile loss
         'verbosity': -1,
         'boosting_type': 'gbdt',
         'n_estimators': trial.suggest_int('n_estimators', 100, 2000),
