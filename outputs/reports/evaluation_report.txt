@@ -1,0 +1,28 @@
+================================================================================
+EVALUATION REPORT: Two-Stage Hurdle Model
+================================================================================
+
+--- Zero-Stage (Classification) Metrics (Threshold: 0.7187) ---
+  AUC:         0.8490
+  Accuracy:    0.7342
+  Precision:   0.9311
+  Recall:      0.6826
+  F1 Score:    0.7877
+
+--- Count-Stage (Regression) Metrics (on y_true > 0 & y_pred > 0) ---
+  R-squared:   0.2668
+  RMSE:        9.6120
+  MAE:         3.5597
+
+--- Overall Combined Model Metrics ---
+  R-squared:   -5.6905
+  RMSE:        8.7911
+  MAE:         5.7269
+
+================================================================================
+
+
+--- Benchmark Model (Single LGBMRegressor) ---
+R2: -0.0020
+RMSE: 3.4021
+MAE: 0.8592
